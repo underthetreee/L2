@@ -1,23 +1,49 @@
 package main
 
-/*
-=== Задача на распаковку ===
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"unicode"
+)
 
-Создать Go функцию, осуществляющую примитивную распаковку строки, содержащую повторяющиеся символы / руны, например:
-	- "a4bc2d5e" => "aaaabccddddde"
-	- "abcd" => "abcd"
-	- "45" => "" (некорректная строка)
-	- "" => ""
-Дополнительное задание: поддержка escape - последовательностей
-	- qwe\4\5 => qwe45 (*)
-	- qwe\45 => qwe44444 (*)
-	- qwe\\5 => qwe\\\\\ (*)
+func unpackString(s string) (string, error) {
+	// Check if string is empty
+	if s == "" {
+		return "", errors.New("empty string")
+	}
 
-В случае если была передана некорректная строка функция должна возвращать ошибку. Написать unit-тесты.
+	var res strings.Builder
+	// Convert string to slice of runes
+	runes := []rune(s)
 
-Функция должна проходить все тесты. Код должен проходить проверки go vet и golint.
-*/
+	// Iterate over runes
+	for i := 0; i < len(runes); i++ {
+		if unicode.IsDigit(runes[i]) {
+			// If first character is digit return error
+			if i == 0 {
+				return "", errors.New("invalid string")
+			}
+
+			// Convert digit to integer
+			count, err := strconv.Atoi(string(runes[i]))
+			if err != nil {
+				return "", err
+			}
+
+			// Write previous character count times
+			for j := 0; j < count; j++ {
+				res.WriteRune(runes[i-1])
+			}
+			continue
+		}
+		// If not digit just append to result
+		res.WriteRune(runes[i])
+	}
+	return res.String(), nil
+}
 
 func main() {
-
+	fmt.Println(unpackString("a4bc2d5e"))
 }
