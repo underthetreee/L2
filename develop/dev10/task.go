@@ -1,20 +1,71 @@
 package main
 
-/*
-=== Утилита telnet ===
-
-Реализовать примитивный telnet клиент:
-Примеры вызовов:
-go-telnet --timeout=10s host port go-telnet mysite.ru 8080 go-telnet --timeout=3s 1.1.1.1 123
-
-Программа должна подключаться к указанному хосту (ip или доменное имя) и порту по протоколу TCP.
-После подключения STDIN программы должен записываться в сокет, а данные полученные и сокета должны выводиться в STDOUT
-Опционально в программу можно передать таймаут на подключение к серверу (через аргумент --timeout, по умолчанию 10s).
-
-При нажатии Ctrl+D программа должна закрывать сокет и завершаться. Если сокет закрывается со стороны сервера, программа должна также завершаться.
-При подключении к несуществующему сервер, программа должна завершаться через timeout.
-*/
+import (
+	"flag"
+	"fmt"
+	"net"
+	"os"
+	"os/signal"
+	"time"
+)
 
 func main() {
+	timeout := flag.Duration("timeout", 10*time.Second, "connection timeout")
+	flag.Parse()
 
+	// Check if host and port provided
+	if flag.NArg() != 2 {
+		fmt.Println("usage: telnet [--timeout=10s] host port")
+		os.Exit(1)
+	}
+
+	host := flag.Arg(0)
+	port := flag.Arg(1)
+
+	// Connect to server with temeout
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), *timeout)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error connecting to server: ", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
+	// Create channel to wait for interrupt signal
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt)
+
+	// Read data from socket and print to stdout
+	go func() {
+		for {
+			data := make([]byte, 4096)
+			n, err := conn.Read(data)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "connection closed by server")
+				os.Exit(0)
+			}
+			fmt.Print(string(data[:n]))
+		}
+	}()
+
+	// Read input data and write it to socket
+	go func() {
+		for {
+			data := make([]byte, 4096)
+			n, err := os.Stdin.Read(data)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "reading from stdin: ", err)
+				os.Exit(1)
+			}
+			if n == 0 {
+				continue
+			}
+			_, err = conn.Write(data[:n])
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "writing to server: ", err)
+				os.Exit(1)
+			}
+		}
+	}()
+
+	<-done
 }
