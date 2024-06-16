@@ -3,23 +3,25 @@ package handler
 import (
 	"calendar/internal/model"
 	"encoding/json"
-	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type eventCreateParam struct {
-	UserID      uuid.UUID `json:"user_id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Date        time.Time `json:"date"`
+type response struct {
+	Result any    `json:"result,omitempty"`
+	Error  string `json:"error,omitempty"`
 }
 
 type eventServicer interface {
 	Add(uuid.UUID, model.Event) error
-	Update(uuid.UUID, uuid.UUID, model.Event) error
+	Update(uuid.UUID, model.Event) error
+	Delete(uuid.UUID, uuid.UUID) error
+	GetByDay(uuid.UUID, time.Time) ([]model.Event, error)
+	GetByWeek(uuid.UUID, time.Time) ([]model.Event, error)
+	GetByMonth(uuid.UUID, time.Time) ([]model.Event, error)
 }
 
 type EventHandler struct {
@@ -32,29 +34,17 @@ func NewEventHandler(service eventServicer) *EventHandler {
 	}
 }
 
-func (h *EventHandler) handleCreate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		fmt.Println("method")
-		return
+func sendJSONResponse(w http.ResponseWriter, statusCode int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.Error("json response", "err", err)
 	}
+}
 
-	defer r.Body.Close()
-	var param eventCreateParam
-	if err := json.NewDecoder(r.Body).Decode(&param); err != nil {
-		fmt.Println("decoder")
-		return
+func sendErrorResponse(w http.ResponseWriter, statusCode int, message string) {
+	resp := response{
+		Error: message,
 	}
-
-	event := model.Event{
-		ID:          uuid.New(),
-		Title:       param.Title,
-		Description: param.Description,
-		Date:        param.Date,
-	}
-
-	if err := h.service.Add(param.UserID, event); err != nil {
-		fmt.Println("add service")
-		return
-	}
-	fmt.Println(event)
+	sendJSONResponse(w, statusCode, resp)
 }

@@ -10,17 +10,15 @@ import (
 	"github.com/google/uuid"
 )
 
-type UserID = uuid.UUID
-
 type MemStore struct {
 	mu   *sync.RWMutex
-	data map[UserID][]model.Event
+	data map[uuid.UUID][]model.Event
 }
 
 func NewMemStore() *MemStore {
 	return &MemStore{
 		mu:   &sync.RWMutex{},
-		data: make(map[UserID][]model.Event),
+		data: make(map[uuid.UUID][]model.Event),
 	}
 }
 
@@ -36,9 +34,9 @@ func (c *MemStore) GetByDate(userID uuid.UUID, date time.Time) ([]model.Event, e
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	events, err := c.findEventsByID(userID)
-	if err != nil {
-		return nil, err
+	events, ok := c.data[userID]
+	if !ok {
+		return nil, fmt.Errorf("user %s not found", userID)
 	}
 
 	var filteredEvents []model.Event
@@ -57,18 +55,18 @@ func (c *MemStore) GetByDate(userID uuid.UUID, date time.Time) ([]model.Event, e
 	return filteredEvents, nil
 }
 
-func (c *MemStore) Update(userID uuid.UUID, eventID uuid.UUID, event model.Event) error {
+func (c *MemStore) Update(userID uuid.UUID, event model.Event) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	events, err := c.findEventsByID(userID)
-	if err != nil {
-		return err
+	events, ok := c.data[userID]
+	if !ok {
+		return fmt.Errorf("user %s not found", userID)
 	}
 
 	found := false
 	for _, e := range events {
-		if e.ID == eventID {
+		if e.ID == event.ID {
 			e.Title = event.Title
 			e.Description = event.Description
 			e.Date = event.Date
@@ -78,18 +76,44 @@ func (c *MemStore) Update(userID uuid.UUID, eventID uuid.UUID, event model.Event
 		}
 	}
 	if !found {
-		return fmt.Errorf("event %d not found", eventID)
+		return fmt.Errorf("event %d not found", event.ID)
 	}
+	c.data[userID] = events
 	return nil
 }
 
-func (c *MemStore) findEventsByID(userID uuid.UUID) ([]model.Event, error) {
+func (c *MemStore) Delete(userID uuid.UUID, eventID uuid.UUID) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	events, ok := c.data[userID]
+	if !ok {
+		return fmt.Errorf("user %s not found", userID)
+	}
+
+	idx := -1
+	for i, e := range events {
+		if e.ID == eventID {
+			idx = i
+			break
+		}
+	}
+
+	if idx == -1 {
+		return fmt.Errorf("event %s not found for user %s", eventID, userID)
+	}
+
+	c.data[userID] = append(events[:idx], events[idx+1:]...)
+	return nil
+}
+
+func (c *MemStore) GetEventsByUserID(userID uuid.UUID) ([]model.Event, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	events, ok := c.data[userID]
 	if !ok {
-		return nil, fmt.Errorf("user %d not found", userID)
+		return nil, fmt.Errorf("user %s not found", userID)
 	}
 	return events, nil
 }

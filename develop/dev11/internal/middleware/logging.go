@@ -10,6 +10,6 @@ func Log(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next(w, r)
-		slog.Info("request", "method", r.Method, "uri", r.RequestURI, "addr", r.RemoteAddr, "time", time.Since(start))
+		slog.Info("request", "method", r.Method, "uri", r.RequestURI, "time", time.Since(start))
 	}
 }
