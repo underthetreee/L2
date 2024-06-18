@@ -38,7 +38,8 @@ false
 
 Внутренне устройство интерфейса выглядит следующим образом:
 
-```
+Структура iface
+```go
 type iface struct {
     tab  *itab          
     data unsafe.Pointer
@@ -49,13 +50,13 @@ type iface struct {
 - data: Это unsafe.Pointer, который указывает на данные, которые реализуют методы интерфейса.
 
 Структура itab
-```
+```go
 type itab struct {
-    inter *interfacetype // указатель на интерфейсный тип
-    _type *_type         // указатель на тип данных, который реализует интерфейс
-    hash  uint32         // копия _type.hash, используется для переключений по типу
-    _     [4]byte        // заполнитель для выравнивания, чтобы обеспечить правильное выравнивание следующего поля
-    fun   [1]uintptr     // массив указателей на методы, реализуемые типом _type для интерфейса inter
+    inter *interfacetype
+    _type *_type         
+    hash  uint32        
+    _     [4]byte        
+    fun   [1]uintptr
 }
 ```
 
